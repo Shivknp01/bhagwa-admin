@@ -54,16 +54,18 @@ export function Sidebar() {
       {/* Sidebar Header & Brand Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-[var(--border-color)]">
         <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 rounded-xl bg-[#FF7A00] flex items-center justify-center text-white shrink-0 shadow-md shadow-[#FF7A00]/20">
-            <Flame className="w-6 h-6 fill-current" />
-          </div>
+          <img
+            src="/daivik_logo.png"
+            alt="Daivik"
+            className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 border border-[#FF7A00]/30 shrink-0 shadow-xs"
+          />
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-bold text-base tracking-wide text-[var(--text-primary)]">
-                BHAGWA
+              <span className="font-extrabold text-lg text-[var(--text-primary)] leading-none tracking-tight">
+                Daivik
               </span>
-              <span className="text-[10px] font-semibold tracking-wider text-[#FF7A00] uppercase">
-                Admin Console
+              <span className="text-[10px] text-[#FF7A00] font-bold tracking-wider uppercase mt-0.5">
+                Admin Panel
               </span>
             </div>
           )}
