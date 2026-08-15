@@ -15,6 +15,7 @@ import {
   Music,
   Image as ImageIcon,
   BellRing,
+  UserCheck,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { ContentTypeBadge } from "@/components/ui/ContentTypeBadge";
@@ -39,16 +40,18 @@ export default function DashboardOverviewPage() {
   const supabase = createClient();
 
   const [timeFilter, setTimeFilter] = useState("30D");
+  const [isLoading, setIsLoading] = useState(true);
+
   const [stats, setStats] = useState<DashboardOverviewStats>({
-    totalUsers: 124820,
-    newUsersToday: 2431,
-    activeUsers: 18240,
-    premiumUsers: 4820,
-    totalViews: 482500,
-    totalLikes: 142300,
-    totalComments: 18400,
-    totalShares: 42100,
-    totalSaves: 38200,
+    totalUsers: 0,
+    newUsersToday: 0,
+    activeUsers: 0,
+    premiumUsers: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    totalShares: 0,
+    totalSaves: 0,
   });
 
   const [topPosts, setTopPosts] = useState<Post[]>([]);
@@ -56,28 +59,53 @@ export default function DashboardOverviewPage() {
 
   useEffect(() => {
     async function loadDashboardData() {
+      setIsLoading(true);
       try {
-        // 1. Call get_dashboard_overview RPC
-        const { data: overviewData } = await supabase.rpc("get_dashboard_overview");
-        if (overviewData) {
-          setStats((prev) => ({
-            ...prev,
-            totalViews: overviewData.total_views || prev.totalViews,
-            totalLikes: overviewData.total_likes || prev.totalLikes,
-            totalUsers: overviewData.total_users || prev.totalUsers,
-            activeUsers: overviewData.active_users || prev.activeUsers,
-            premiumUsers: overviewData.premium_users || prev.premiumUsers,
-          }));
-        }
+        // 1. Fetch real total users count
+        const { count: totalUsersCount } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true });
 
-        // 2. Query posts table for top content
-        const { data: postsData } = await supabase
-          .from("posts")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(5);
+        // 2. Fetch new users today count
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const { count: newUsersTodayCount } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", todayStart.toISOString());
+
+        // 3. Fetch DAU (Active past 24h)
+        const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const { count: activeUsersCount } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .gte("last_active_at", past24h.toISOString());
+
+        // 4. Fetch premium users count
+        const { count: premiumUsersCount } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("is_premium", true);
+
+        // 5. Query posts table to aggregate real views & likes
+        const { data: postsData } = await supabase.from("posts").select("*");
+
+        let calcViews = 0;
+        let calcLikes = 0;
+        let calcComments = 0;
+        let calcShares = 0;
+        let calcSaves = 0;
 
         if (postsData && postsData.length > 0) {
+          postsData.forEach((row) => {
+            calcViews += getDisplayedValue(row.actual_views || 0, row.view_override, row.views_override_enabled);
+            calcLikes += getDisplayedValue(row.actual_likes || 0, row.like_override, row.likes_override_enabled);
+            calcComments += getDisplayedValue(row.actual_comments || 0, row.comment_override, row.comments_override_enabled);
+            calcShares += getDisplayedValue(row.actual_shares || 0, row.share_override, row.shares_override_enabled);
+            calcSaves += getDisplayedValue(row.actual_saves || 0, row.save_override, row.saves_override_enabled);
+          });
+
+          // Sort top posts by displayed views + likes
           const mappedPosts: Post[] = postsData.map((row) => ({
             id: row.id as string,
             contentType: row.content_type,
@@ -126,26 +154,47 @@ export default function DashboardOverviewPage() {
             createdAt: row.created_at,
             updatedAt: row.updated_at,
           }));
-          setTopPosts(mappedPosts);
+
+          mappedPosts.sort((a, b) => {
+            const viewsA = getDisplayedValue(a.engagement.actualViews, a.engagement.viewOverride, a.engagement.viewsOverrideEnabled);
+            const viewsB = getDisplayedValue(b.engagement.actualViews, b.engagement.viewOverride, b.engagement.viewsOverrideEnabled);
+            return viewsB - viewsA;
+          });
+
+          setTopPosts(mappedPosts.slice(0, 5));
         }
 
-        // 3. Query profiles table for recent registrations
+        setStats({
+          totalUsers: totalUsersCount || 0,
+          newUsersToday: newUsersTodayCount || 0,
+          activeUsers: activeUsersCount || 0,
+          premiumUsers: premiumUsersCount || 0,
+          totalViews: calcViews,
+          totalLikes: calcLikes,
+          totalComments: calcComments,
+          totalShares: calcShares,
+          totalSaves: calcSaves,
+        });
+
+        // 6. Query profiles table for real recent registrations
         const { data: usersData } = await supabase
           .from("profiles")
           .select("*")
           .order("created_at", { ascending: false })
           .limit(5);
 
-        if (usersData && usersData.length > 0) {
+        if (usersData) {
           setRecentUsers(usersData);
         }
       } catch (err) {
-        console.error("Error loading dashboard metrics:", err);
+        console.error("Error loading production dashboard metrics:", err);
+      } finally {
+        setIsLoading(false);
       }
     }
 
     loadDashboardData();
-  }, []);
+  }, [supabase]);
 
   return (
     <div className="space-y-8">
@@ -156,7 +205,7 @@ export default function DashboardOverviewPage() {
             Dashboard Overview
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Real-time analytics, user growth, revenue, and content engagement metrics for Bhagwa.
+            Real-time production analytics, user growth, and content metrics for Bhagwa.
           </p>
         </div>
 
@@ -182,7 +231,7 @@ export default function DashboardOverviewPage() {
         <StatCard
           title="Total Users"
           value={formatNumber(stats.totalUsers)}
-          change="+12.4%"
+          change="Real-time"
           isPositive={true}
           icon={Users}
           iconBgColor="bg-blue-500/10 text-blue-600 dark:text-blue-400"
@@ -190,15 +239,15 @@ export default function DashboardOverviewPage() {
         <StatCard
           title="New Users Today"
           value={formatNumber(stats.newUsersToday)}
-          change="+8.2%"
+          change="Today"
           isPositive={true}
           icon={UserPlus}
           iconBgColor="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
         />
         <StatCard
-          title="DAU"
+          title="DAU (Active 24h)"
           value={formatNumber(stats.activeUsers)}
-          change="+6.7%"
+          change="Active"
           isPositive={true}
           icon={Activity}
           iconBgColor="bg-purple-500/10 text-purple-600 dark:text-purple-400"
@@ -206,15 +255,15 @@ export default function DashboardOverviewPage() {
         <StatCard
           title="Premium Users"
           value={formatNumber(stats.premiumUsers)}
-          change="+14.2%"
+          change="Subscribed"
           isPositive={true}
           icon={Crown}
           iconBgColor="bg-amber-500/10 text-amber-600 dark:text-amber-400"
         />
         <StatCard
           title="Revenue (Month)"
-          value="₹8,42,300"
-          change="+18.4%"
+          value="₹0"
+          change="Live"
           isPositive={true}
           icon={IndianRupee}
           iconBgColor="bg-[#FF7A00]/10 text-[#FF7A00]"
@@ -271,19 +320,19 @@ export default function DashboardOverviewPage() {
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] font-medium">
               <Music className="w-3.5 h-3.5 text-indigo-500" /> Audio Plays
             </div>
-            <p className="text-base font-bold text-[var(--text-primary)] mt-1">68.4K</p>
+            <p className="text-base font-bold text-[var(--text-primary)] mt-1">0</p>
           </div>
           <div className="p-3.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)]">
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] font-medium">
               <ImageIcon className="w-3.5 h-3.5 text-orange-500" /> Wallpapers
             </div>
-            <p className="text-base font-bold text-[var(--text-primary)] mt-1">24.2K</p>
+            <p className="text-base font-bold text-[var(--text-primary)] mt-1">0</p>
           </div>
           <div className="p-3.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)]">
             <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] font-medium">
               <BellRing className="w-3.5 h-3.5 text-purple-500" /> Ringtones
             </div>
-            <p className="text-base font-bold text-[var(--text-primary)] mt-1">14.8K</p>
+            <p className="text-base font-bold text-[var(--text-primary)] mt-1">0</p>
           </div>
         </div>
       </div>
@@ -312,10 +361,16 @@ export default function DashboardOverviewPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
-                {topPosts.length === 0 ? (
+                {isLoading ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-xs text-[var(--text-secondary)]">
-                      Loading top content from database...
+                    <td colSpan={4} className="py-8 text-center text-xs text-[var(--text-secondary)]">
+                      Loading production content from database...
+                    </td>
+                  </tr>
+                ) : topPosts.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-xs text-[var(--text-secondary)]">
+                      No content items found in database.
                     </td>
                   </tr>
                 ) : (
@@ -368,23 +423,29 @@ export default function DashboardOverviewPage() {
             <h2 className="text-base font-bold text-[var(--text-primary)]">
               Recent Registrations
             </h2>
-            <span className="text-xs font-medium text-[#FF7A00]">Real Users</span>
+            <span className="text-xs font-semibold text-[#FF7A00]">Real Devotees</span>
           </div>
 
-          <div className="space-y-3 divide-y divide-[var(--border-color)]">
-            {recentUsers.length === 0 ? (
-              <p className="text-xs text-[var(--text-secondary)] text-center py-4">
-                Loading recent devotees...
+          <div className="space-y-3">
+            {isLoading ? (
+              <p className="text-xs text-[var(--text-secondary)] text-center py-8">
+                Loading recent registrations...
               </p>
+            ) : recentUsers.length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <UserCheck className="w-8 h-8 text-[var(--text-secondary)] mx-auto opacity-40" />
+                <p className="text-sm font-semibold text-[var(--text-primary)]">No Registered Devotees Yet</p>
+                <p className="text-xs text-[var(--text-secondary)]">New app signups will appear here automatically.</p>
+              </div>
             ) : (
               recentUsers.map((u) => (
-                <div key={u.id as string} className="pt-3 first:pt-0 flex items-center justify-between">
+                <div key={u.id as string} className="p-3 rounded-xl border border-[var(--border-color)] flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-[var(--text-primary)]">
                       {(u.display_name as string) || "Devotee"}
                     </p>
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Bhagwa ID: #{u.user_id as number} • {(u.login_method as string) || "skip"}
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                      Bhagwa ID: #{u.user_id as number} • <span className="capitalize">{(u.login_method as string) || "skip"}</span>
                     </p>
                   </div>
                   <StatusBadge status={(u.status as string) || "active"} />
