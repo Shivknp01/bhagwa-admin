@@ -135,6 +135,7 @@ export class MockContentRepository implements ContentRepository {
     const newPost: Post = {
       id: `post_${Date.now()}`,
       ...input,
+      status: input.status || "published",
       engagement: {
         actualViews: 0,
         actualLikes: 0,

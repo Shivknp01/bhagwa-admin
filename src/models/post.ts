@@ -54,6 +54,8 @@ export interface Post {
   titleHi?: string;
   description?: string;
   descriptionHi?: string;
+  contentBody?: string;
+  contentBodyHi?: string;
   thumbnailUrl?: string;
   mediaUrl?: string;
   audioUrl?: string;
@@ -83,6 +85,8 @@ export interface CreatePostInput {
   titleHi?: string;
   description?: string;
   descriptionHi?: string;
+  contentBody?: string;
+  contentBodyHi?: string;
   thumbnailUrl?: string;
   mediaUrl?: string;
   audioUrl?: string;
@@ -98,11 +102,35 @@ export interface CreatePostInput {
   isFeatured: boolean;
   isPinned?: boolean;
   isPremium: boolean;
+  status?: PostStatus;
   feedPriority?: number;
-  status: PostStatus;
   scheduledAt?: string;
 }
 
-export interface UpdatePostInput extends Partial<CreatePostInput> {
+export interface UpdatePostInput {
+  title?: string;
+  titleHi?: string;
+  description?: string;
+  descriptionHi?: string;
+  contentBody?: string;
+  contentBodyHi?: string;
+  thumbnailUrl?: string;
+  mediaUrl?: string;
+  audioUrl?: string;
+  durationText?: string;
+  authorName?: string;
+  deity?: string;
+  category?: string;
+  language?: string;
+  tags?: string[];
+  actionType?: string;
+  actionLabel?: string;
+  actionLabelHi?: string;
+  isFeatured?: boolean;
+  isPinned?: boolean;
+  isPremium?: boolean;
+  status?: PostStatus;
+  feedPriority?: number;
+  scheduledAt?: string;
   engagement?: Partial<EngagementMetrics>;
 }

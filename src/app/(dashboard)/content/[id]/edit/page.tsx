@@ -31,6 +31,8 @@ export default function EditContentPage({ params }: { params: Promise<{ id: stri
   const [titleHi, setTitleHi] = useState("");
   const [description, setDescription] = useState("");
   const [descriptionHi, setDescriptionHi] = useState("");
+  const [contentBody, setContentBody] = useState("");
+  const [contentBodyHi, setContentBodyHi] = useState("");
   const [deity, setDeity] = useState("Mahadev");
   const [category, setCategory] = useState("Devotional");
   const [language, setLanguage] = useState("Hindi");
@@ -56,6 +58,8 @@ export default function EditContentPage({ params }: { params: Promise<{ id: stri
           setTitleHi(post.titleHi || "");
           setDescription(post.description || "");
           setDescriptionHi(post.descriptionHi || "");
+          setContentBody(post.contentBody || "");
+          setContentBodyHi(post.contentBodyHi || "");
           setDeity(post.deity || "Mahadev");
           setCategory(post.category || "Devotional");
           setLanguage(post.language || "Hindi");
@@ -110,6 +114,8 @@ export default function EditContentPage({ params }: { params: Promise<{ id: stri
         titleHi: titleHi || undefined,
         description: description || undefined,
         descriptionHi: descriptionHi || undefined,
+        contentBody: contentBody || undefined,
+        contentBodyHi: contentBodyHi || undefined,
         deity,
         category,
         language,
@@ -226,6 +232,33 @@ export default function EditContentPage({ params }: { params: Promise<{ id: stri
               onChange={(e) => setDescriptionHi(e.target.value)}
               className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00]"
             />
+          </div>
+        </div>
+
+        {/* DEVOTIONAL BODY CONTENT */}
+        <div className="space-y-3 pt-2 border-t border-[var(--border-color)]">
+          <label className="text-xs font-bold text-[var(--text-primary)] block">
+            Devotional Text & Full Content Body (Mantra, Sloka, Stuti, Scripture Story, Horoscope text)
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-semibold text-[var(--text-secondary)] block mb-1">Full Content / Mantra Text (English)</label>
+              <textarea
+                rows={5}
+                value={contentBody}
+                onChange={(e) => setContentBody(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00] font-mono text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-[var(--text-secondary)] block mb-1">Full Content / Mantra Text (Hindi / Sanskrit)</label>
+              <textarea
+                rows={5}
+                value={contentBodyHi}
+                onChange={(e) => setContentBodyHi(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00] font-mono text-xs"
+              />
+            </div>
           </div>
         </div>
 

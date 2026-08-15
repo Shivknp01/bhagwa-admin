@@ -196,6 +196,22 @@ export default function ContentDetailPage({ params }: { params: Promise<{ id: st
             </p>
           </div>
 
+          {(post.contentBody || post.contentBodyHi) && (
+            <div className="space-y-1 pt-2 border-t border-[var(--border-color)]">
+              <span className="text-xs font-bold text-[#FF7A00] block uppercase tracking-wider">
+                Full Devotional Content / Mantra Body
+              </span>
+              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2 font-mono text-xs text-[var(--text-primary)] whitespace-pre-wrap">
+                {post.contentBody}
+                {post.contentBodyHi && (
+                  <div className="pt-2 border-t border-amber-500/10 text-amber-900 dark:text-amber-200 font-serif">
+                    {post.contentBodyHi}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {post.tags && post.tags.length > 0 && (
             <div className="space-y-1">
               <span className="text-xs font-semibold text-[var(--text-secondary)] block">Tags</span>

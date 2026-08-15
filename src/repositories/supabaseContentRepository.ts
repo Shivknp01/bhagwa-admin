@@ -166,6 +166,8 @@ export class SupabaseContentRepository implements ContentRepository {
       title_hi: input.titleHi,
       description: input.description,
       description_hi: input.descriptionHi,
+      content_body: input.contentBody,
+      content_body_hi: input.contentBodyHi,
       language: input.language || "Hindi",
       tags: input.tags || [],
       action_type: input.actionType || cta.actionType,
@@ -206,6 +208,8 @@ export class SupabaseContentRepository implements ContentRepository {
     if (input.titleHi !== undefined) updateData.title_hi = input.titleHi;
     if (input.description !== undefined) updateData.description = input.description;
     if (input.descriptionHi !== undefined) updateData.description_hi = input.descriptionHi;
+    if (input.contentBody !== undefined) updateData.content_body = input.contentBody;
+    if (input.contentBodyHi !== undefined) updateData.content_body_hi = input.contentBodyHi;
     if (input.status !== undefined) updateData.status = input.status;
     if (input.isFeatured !== undefined) updateData.is_featured = input.isFeatured;
     if (input.isPinned !== undefined) updateData.is_pinned = input.isPinned;
@@ -367,6 +371,8 @@ export class SupabaseContentRepository implements ContentRepository {
       titleHi: row.title_hi as string,
       description: row.description as string,
       descriptionHi: row.description_hi as string,
+      contentBody: (row.content_body as string) || (row.mantra_text as string) || (row.stuti_text as string),
+      contentBodyHi: row.content_body_hi as string,
       deity: "Mahadev",
       category: "Devotional",
       language: (row.language as string) || "Hindi",
