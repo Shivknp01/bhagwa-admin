@@ -24,7 +24,8 @@ export default function SettingsPage() {
         const { data, error } = await supabase.from("app_settings").select("setting_key, setting_value");
         if (data && !error) {
           data.forEach((item) => {
-            const val = item.setting_value === true || item.setting_value === "true";
+            const raw = item.setting_value;
+            const val = raw === true || raw === "true" || raw === 1 || raw === "1";
             if (item.setting_key === "auth.google_enabled") setGoogleEnabled(val);
             if (item.setting_key === "auth.phone_enabled") setPhoneEnabled(val);
             if (item.setting_key === "auth.skip_enabled") setSkipEnabled(val);
@@ -46,16 +47,19 @@ export default function SettingsPage() {
 
     try {
       const updates = [
-        { setting_key: "auth.google_enabled", setting_value: JSON.stringify(googleEnabled) },
-        { setting_key: "auth.phone_enabled", setting_value: JSON.stringify(phoneEnabled) },
-        { setting_key: "auth.skip_enabled", setting_value: JSON.stringify(skipEnabled) },
-        { setting_key: "comments_enabled", setting_value: JSON.stringify(commentsEnabled) },
-        { setting_key: "sharing_enabled", setting_value: JSON.stringify(sharingEnabled) },
-        { setting_key: "maintenance_mode", setting_value: JSON.stringify(maintenanceMode) },
+        { setting_key: "auth.google_enabled", setting_value: googleEnabled },
+        { setting_key: "auth.phone_enabled", setting_value: phoneEnabled },
+        { setting_key: "auth.skip_enabled", setting_value: skipEnabled },
+        { setting_key: "comments_enabled", setting_value: commentsEnabled },
+        { setting_key: "sharing_enabled", setting_value: sharingEnabled },
+        { setting_key: "maintenance_mode", setting_value: maintenanceMode },
       ];
 
       for (const update of updates) {
-        await supabase.from("app_settings").upsert(update, { onConflict: "setting_key" });
+        const { error } = await supabase.from("app_settings").upsert(update, { onConflict: "setting_key" });
+        if (error) {
+          console.error(`Error saving ${update.setting_key}:`, error);
+        }
       }
 
       setSaveSuccess(true);
