@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, UserCheck, ShieldAlert, Sparkles, Smartphone, Mail, Globe } from "lucide-react";
+import { Search, UserCheck, Sparkles, Smartphone, Mail, Globe, Users } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { createClient } from "@/lib/supabase/client";
 
@@ -42,35 +42,7 @@ export default function UsersPage() {
         if (data && !error) {
           setUsers(data as UserProfile[]);
         } else {
-          // Fallback sample data if empty
-          setUsers([
-            {
-              id: "profile_101",
-              user_id: 101,
-              display_name: "Rahul Kumar",
-              email: "rahul@gmail.com",
-              phone_number: "+91 9876543210",
-              login_method: "google",
-              is_anonymous: false,
-              is_premium: true,
-              status: "active",
-              created_at: new Date().toISOString(),
-              last_active_at: new Date().toISOString(),
-            },
-            {
-              id: "profile_102",
-              user_id: 102,
-              display_name: "Guest Devotee",
-              email: null,
-              phone_number: null,
-              login_method: "skip",
-              is_anonymous: true,
-              is_premium: false,
-              status: "active",
-              created_at: new Date().toISOString(),
-              last_active_at: new Date().toISOString(),
-            },
-          ]);
+          setUsers([]);
         }
       } catch (err) {
         console.error("Error loading users:", err);
@@ -79,7 +51,7 @@ export default function UsersPage() {
       }
     }
     loadUsers();
-  }, [statusFilter]);
+  }, [statusFilter, supabase]);
 
   const filteredUsers = users.filter((u) => {
     if (!searchQuery.trim()) return true;
@@ -140,7 +112,7 @@ export default function UsersPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-[var(--border-color)] bg-black/5 dark:bg-white/5 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
-                <th className="py-3.5 px-4">User ID</th>
+                <th className="py-3.5 px-4">Bhagwa User ID</th>
                 <th className="py-3.5 px-4">Devotee Name</th>
                 <th className="py-3.5 px-4">Contact Info</th>
                 <th className="py-3.5 px-4">Login Method</th>
@@ -158,8 +130,12 @@ export default function UsersPage() {
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-[var(--text-secondary)]">
-                    No devotees found matching criteria.
+                  <td colSpan={7} className="py-12 text-center text-[var(--text-secondary)]">
+                    <div className="space-y-2">
+                      <Users className="w-8 h-8 text-[var(--text-secondary)] mx-auto opacity-40" />
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">No Registered Devotees Found</p>
+                      <p className="text-xs">App signups will appear here with assigned Bhagwa User IDs.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
