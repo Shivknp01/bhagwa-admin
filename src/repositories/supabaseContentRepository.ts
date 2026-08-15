@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { Post, CreatePostInput, UpdatePostInput, EngagementMetrics, ContentType } from "@/models/post";
-import { ContentRepository } from "./contentRepository";
+import { ContentRepository, ContentFilterOptions, PaginatedPostsResult } from "./contentRepository";
 import { initialMockPosts } from "@/data/mock/posts";
 
 export class SupabaseContentRepository implements ContentRepository {
@@ -52,6 +52,93 @@ export class SupabaseContentRepository implements ContentRepository {
     }
   }
 
+  async getFilteredPosts(options: ContentFilterOptions): Promise<PaginatedPostsResult> {
+    try {
+      let query = this.supabase.from("posts").select("*", { count: "exact" });
+
+      // Tab filter
+      if (options.tab && options.tab.toLowerCase() !== "all") {
+        query = query.eq("content_type", options.tab.toLowerCase());
+      }
+
+      // Content Type filter
+      if (options.contentType && options.contentType.toLowerCase() !== "all") {
+        query = query.eq("content_type", options.contentType.toLowerCase());
+      }
+
+      // Search Query
+      if (options.searchQuery && options.searchQuery.trim() !== "") {
+        const q = `%${options.searchQuery.trim()}%`;
+        query = query.or(`title.ilike.${q},description.ilike.${q}`);
+      }
+
+      // Status
+      if (options.status && options.status.toLowerCase() !== "all") {
+        query = query.eq("status", options.status.toLowerCase());
+      }
+
+      // Language
+      if (options.language && options.language.toLowerCase() !== "all") {
+        query = query.eq("language", options.language);
+      }
+
+      // Featured
+      if (options.featured && options.featured !== "all") {
+        query = query.eq("is_featured", options.featured === "featured");
+      }
+
+      // Premium
+      if (options.premium && options.premium !== "all") {
+        query = query.eq("is_premium", options.premium === "premium");
+      }
+
+      // Date Range
+      if (options.dateRange && options.dateRange !== "all") {
+        const now = new Date();
+        let startDate: Date | null = null;
+        if (options.dateRange === "today") {
+          startDate = new Date(now.setHours(0, 0, 0, 0));
+        } else if (options.dateRange === "7d") {
+          startDate = new Date(now.setDate(now.getDate() - 7));
+        } else if (options.dateRange === "30d") {
+          startDate = new Date(now.setDate(now.getDate() - 30));
+        } else if (options.dateRange === "custom" && options.startDate) {
+          startDate = new Date(options.startDate);
+        }
+
+        if (startDate) {
+          query = query.gte("created_at", startDate.toISOString());
+        }
+        if (options.dateRange === "custom" && options.endDate) {
+          query = query.lte("created_at", new Date(options.endDate).toISOString());
+        }
+      }
+
+      // Pagination
+      const page = options.page || 1;
+      const pageSize = options.pageSize || 10;
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, count, error } = await query
+        .order("feed_priority", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (error || !data) {
+        // Fallback to mock filtering
+        const mockRepo = new (await import("./contentRepository")).MockContentRepository();
+        return mockRepo.getFilteredPosts(options);
+      }
+
+      const posts = data.map((row) => this.mapRowToPost(row));
+      return { posts, totalCount: count || posts.length };
+    } catch {
+      const mockRepo = new (await import("./contentRepository")).MockContentRepository();
+      return mockRepo.getFilteredPosts(options);
+    }
+  }
+
   async getPostById(id: string): Promise<Post | undefined> {
     try {
       const { data, error } = await this.supabase
@@ -81,8 +168,8 @@ export class SupabaseContentRepository implements ContentRepository {
       description_hi: input.descriptionHi,
       language: input.language || "Hindi",
       tags: input.tags || [],
-      action_type: cta.actionType,
-      action_label: cta.actionLabel,
+      action_type: input.actionType || cta.actionType,
+      action_label: input.actionLabel || cta.actionLabel,
       action_label_hi: input.actionLabelHi,
       author_name: input.authorName || "Bhakti Media",
       thumbnail_url: input.thumbnailUrl,
@@ -112,15 +199,25 @@ export class SupabaseContentRepository implements ContentRepository {
 
   async updatePost(id: string, input: UpdatePostInput): Promise<Post> {
     const updateData: Record<string, unknown> = {
-      title: input.title,
-      description: input.description,
-      status: input.status,
-      is_featured: input.isFeatured,
-      is_pinned: input.isPinned,
-      is_premium: input.isPremium,
-      feed_priority: input.feedPriority,
       updated_at: new Date().toISOString(),
     };
+
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.titleHi !== undefined) updateData.title_hi = input.titleHi;
+    if (input.description !== undefined) updateData.description = input.description;
+    if (input.descriptionHi !== undefined) updateData.description_hi = input.descriptionHi;
+    if (input.status !== undefined) updateData.status = input.status;
+    if (input.isFeatured !== undefined) updateData.is_featured = input.isFeatured;
+    if (input.isPinned !== undefined) updateData.is_pinned = input.isPinned;
+    if (input.isPremium !== undefined) updateData.is_premium = input.isPremium;
+    if (input.feedPriority !== undefined) updateData.feed_priority = input.feedPriority;
+    if (input.thumbnailUrl !== undefined) updateData.thumbnail_url = input.thumbnailUrl;
+    if (input.mediaUrl !== undefined) updateData.media_url = input.mediaUrl;
+    if (input.audioUrl !== undefined) updateData.audio_url = input.audioUrl;
+    if (input.actionType !== undefined) updateData.action_type = input.actionType;
+    if (input.actionLabel !== undefined) updateData.action_label = input.actionLabel;
+    if (input.language !== undefined) updateData.language = input.language;
+    if (input.scheduledAt !== undefined) updateData.scheduled_at = input.scheduledAt;
 
     if (input.engagement) {
       const e = input.engagement;
@@ -155,6 +252,57 @@ export class SupabaseContentRepository implements ContentRepository {
     return !error;
   }
 
+  async duplicatePost(id: string): Promise<Post> {
+    const orig = await this.getPostById(id);
+    if (!orig) throw new Error("Original post not found");
+
+    return this.createPost({
+      contentType: orig.contentType,
+      title: `${orig.title} (Copy)`,
+      titleHi: orig.titleHi,
+      description: orig.description,
+      descriptionHi: orig.descriptionHi,
+      thumbnailUrl: orig.thumbnailUrl,
+      mediaUrl: orig.mediaUrl,
+      audioUrl: orig.audioUrl,
+      durationText: orig.durationText,
+      deity: orig.deity,
+      category: orig.category,
+      language: orig.language,
+      tags: orig.tags,
+      actionType: orig.actionType,
+      actionLabel: orig.actionLabel,
+      actionLabelHi: orig.actionLabelHi,
+      isFeatured: false,
+      isPinned: false,
+      isPremium: orig.isPremium,
+      status: "draft",
+    });
+  }
+
+  async bulkUpdateStatus(ids: string[], status: "published" | "draft" | "archived"): Promise<void> {
+    const { error } = await this.supabase
+      .from("posts")
+      .update({ status, updated_at: new Date().toISOString() })
+      .in("id", ids);
+
+    if (error) throw new Error(`Bulk status update failed: ${error.message}`);
+  }
+
+  async bulkToggleFeatured(ids: string[], isFeatured: boolean): Promise<void> {
+    const { error } = await this.supabase
+      .from("posts")
+      .update({ is_featured: isFeatured, updated_at: new Date().toISOString() })
+      .in("id", ids);
+
+    if (error) throw new Error(`Bulk feature update failed: ${error.message}`);
+  }
+
+  async bulkDelete(ids: string[]): Promise<void> {
+    const { error } = await this.supabase.from("posts").delete().in("id", ids);
+    if (error) throw new Error(`Bulk delete failed: ${error.message}`);
+  }
+
   async updateEngagementMetrics(id: string, metrics: Partial<EngagementMetrics>): Promise<Post> {
     return this.updatePost(id, { engagement: metrics as Partial<EngagementMetrics> });
   }
@@ -184,8 +332,21 @@ export class SupabaseContentRepository implements ContentRepository {
     return this.mapRowToPost(data);
   }
 
-  async bulkUpdateEngagement(): Promise<void> {
-    // Implementation placeholder
+  async bulkUpdateEngagement(ids: string[], deltas: { views?: number; likes?: number; comments?: number; shares?: number; saves?: number }): Promise<void> {
+    for (const id of ids) {
+      const p = await this.getPostById(id);
+      if (!p) continue;
+      await this.updatePost(id, {
+        engagement: {
+          ...p.engagement,
+          actualViews: p.engagement.actualViews + (deltas.views || 0),
+          actualLikes: p.engagement.actualLikes + (deltas.likes || 0),
+          actualComments: p.engagement.actualComments + (deltas.comments || 0),
+          actualShares: p.engagement.actualShares + (deltas.shares || 0),
+          actualSaves: p.engagement.actualSaves + (deltas.saves || 0),
+        },
+      });
+    }
   }
 
   async reorderFeed(postIds: string[]): Promise<void> {
@@ -208,11 +369,11 @@ export class SupabaseContentRepository implements ContentRepository {
       descriptionHi: row.description_hi as string,
       deity: "Mahadev",
       category: "Devotional",
-      language: row.language as string || "Hindi",
+      language: (row.language as string) || "Hindi",
       tags: (row.tags as string[]) || [],
-      actionType: row.action_type as string || "shareStatus",
-      actionLabel: row.action_label as string || "Share Status",
-      authorName: row.author_name as string || "Bhakti Media",
+      actionType: (row.action_type as string) || "shareStatus",
+      actionLabel: (row.action_label as string) || "Share Status",
+      authorName: (row.author_name as string) || "Bhakti Media",
       thumbnailUrl: row.thumbnail_url as string,
       mediaUrl: row.media_url as string,
       audioUrl: row.audio_url as string,
@@ -244,7 +405,7 @@ export class SupabaseContentRepository implements ContentRepository {
       isFeatured: (row.is_featured as boolean) || false,
       isPinned: (row.is_pinned as boolean) || false,
       isPremium: (row.is_premium as boolean) || false,
-      status: row.status as "published" | "draft" | "scheduled" | "archived" || "published",
+      status: (row.status as "published" | "draft" | "scheduled" | "archived") || "published",
       feedPriority: (row.feed_priority as number) || 0,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
