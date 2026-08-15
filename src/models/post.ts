@@ -57,6 +57,8 @@ export interface Post {
   thumbnailUrl?: string;
   mediaUrl?: string;
   audioUrl?: string;
+  durationText?: string;
+  authorName?: string;
   deity?: string;
   category?: string;
   language?: string;
@@ -66,7 +68,9 @@ export interface Post {
   actionLabelHi?: string;
   engagement: EngagementMetrics;
   isFeatured: boolean;
+  isPinned?: boolean;
   isPremium: boolean;
+  feedPriority?: number;
   status: PostStatus;
   scheduledAt?: string;
   createdAt: string;
@@ -81,14 +85,20 @@ export interface CreatePostInput {
   descriptionHi?: string;
   thumbnailUrl?: string;
   mediaUrl?: string;
+  audioUrl?: string;
+  durationText?: string;
+  authorName?: string;
   deity?: string;
   category?: string;
   language?: string;
   tags?: string[];
   actionType: string;
   actionLabel: string;
+  actionLabelHi?: string;
   isFeatured: boolean;
+  isPinned?: boolean;
   isPremium: boolean;
+  feedPriority?: number;
   status: PostStatus;
   scheduledAt?: string;
 }
