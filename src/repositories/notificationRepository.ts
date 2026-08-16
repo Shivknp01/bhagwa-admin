@@ -35,11 +35,13 @@ export class NotificationRepository {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error || !data || data.length === 0) {
+      if (error) {
+        console.error("Error fetching notifications:", error);
         return mockNotifications;
       }
 
-      return data.map(this.mapRowToNotification);
+      if (!data) return [];
+      return data.map((row) => this.mapRowToNotification(row as Record<string, unknown>));
     } catch {
       return mockNotifications;
     }
