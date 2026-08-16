@@ -130,19 +130,25 @@ export async function POST(req: Request) {
               notification,
               data: dataPayload,
               android: {
+                priority: "high",
                 notification: {
                   channelId: "daivik_broadcasts",
-                  priority: "high",
+                  priority: "max",
+                  visibility: "public",
                   defaultSound: true,
                   defaultVibrateTimings: true,
                   icon: "@mipmap/ic_launcher",
                   clickAction: "FLUTTER_NOTIFICATION_CLICK",
                 },
-                priority: "high",
               },
               apns: {
                 payload: {
-                  aps: { alert: { title, body: message }, sound: "default", badge: 1 },
+                  aps: {
+                    alert: { title, body: message },
+                    sound: "default",
+                    badge: 1,
+                    contentAvailable: true,
+                  },
                 },
               },
             };
