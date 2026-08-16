@@ -3,47 +3,73 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bell, Send, Smartphone, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Bell, CheckCircle, Send, Smartphone, X } from "lucide-react";
 import { notificationRepository } from "@/repositories/notificationRepository";
 
 export default function CreateNotificationPage() {
   const router = useRouter();
 
-  const [title, setTitle] = useState("🌅 Shravan Somvar Mahadev Aarti & Wallpapers");
-  const [body, setBody] = useState("Receive divine blessings today with HD Mahadev Wallpapers and morning Aarti audio in Daivik.");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [actionUrl, setActionUrl] = useState("bhagwa://category/Wallpaper");
   const [targetAudience, setTargetAudience] = useState<"all" | "premium" | "free">("all");
   const [submitting, setSubmitting] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleSend = async () => {
-    if (!title.trim() || !body.trim()) {
-      alert("Title and Message Body are required");
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    const trimmedTitle = title.trim();
+    const trimmedBody = body.trim();
+
+    // Frontend validation
+    if (!trimmedTitle) {
+      setErrorMsg("Notification Title is required.");
+      return;
+    }
+    if (!trimmedBody) {
+      setErrorMsg("Message Body is required.");
+      return;
+    }
+    if (trimmedTitle.length > 100) {
+      setErrorMsg("Title must be 100 characters or less.");
+      return;
+    }
+    if (trimmedBody.length > 500) {
+      setErrorMsg("Message body must be 500 characters or less.");
       return;
     }
 
     setSubmitting(true);
     try {
       await notificationRepository.sendNotification({
-        title,
-        body,
-        imageUrl: imageUrl || undefined,
-        actionUrl: actionUrl || undefined,
+        title: trimmedTitle,
+        body: trimmedBody,
+        imageUrl: imageUrl.trim() || undefined,
+        actionUrl: actionUrl.trim() || undefined,
         targetAudience,
         status: "sent",
       });
 
-      router.push("/notifications");
-
+      setSuccessMsg("🚩 Notification broadcasted successfully!");
+      setTimeout(() => {
+        router.push("/notifications");
+      }, 1200);
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : "Error broadcasting notification";
-      console.error("Broadcast notification error:", err);
-      alert(`Error broadcasting notification: ${errorMsg}`);
+      const msg = err instanceof Error ? err.message : "Failed to broadcast notification";
+      console.error("Broadcast error:", err);
+      setErrorMsg(msg);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const charTitle = title.length;
+  const charBody = body.length;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 select-none pb-16">
@@ -77,33 +103,65 @@ export default function CreateNotificationPage() {
           <button
             disabled={submitting}
             onClick={handleSend}
-            className="inline-flex items-center gap-1.5 bg-[#FF7A00] hover:bg-[#E66E00] text-white text-xs font-bold px-5 py-2 rounded-xl shadow-md transition-all active:scale-95"
+            className="inline-flex items-center gap-1.5 bg-[#FF7A00] hover:bg-[#E66E00] disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold px-5 py-2 rounded-xl shadow-md transition-all active:scale-95"
           >
             <Send className="w-4 h-4" />
-            <span>Send Now 🚩</span>
+            <span>{submitting ? "Sending..." : "Send Now 🚩"}</span>
           </button>
         </div>
       </div>
 
+      {/* ERROR BANNER */}
+      {errorMsg && (
+        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium px-4 py-3 rounded-xl">
+          <Bell className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* SUCCESS BANNER */}
+      {successMsg && (
+        <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-medium px-4 py-3 rounded-xl">
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
       {/* COMPOSER FORM */}
       <div className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl space-y-5 shadow-xs">
         <div>
-          <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Notification Title *</label>
+          <div className="flex justify-between mb-1">
+            <label className="text-xs font-bold text-[var(--text-primary)]">Notification Title *</label>
+            <span className={`text-xs ${charTitle > 100 ? "text-red-400" : "text-[var(--text-secondary)]"}`}>
+              {charTitle}/100
+            </span>
+          </div>
           <input
+            id="notification-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00]"
+            placeholder="e.g. 🌅 Shravan Somvar Mahadev Aarti & Wallpapers"
+            maxLength={120}
+            className="w-full px-3.5 py-2.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00] placeholder:font-normal placeholder:text-[var(--text-secondary)]"
           />
         </div>
 
         <div>
-          <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Message Body *</label>
+          <div className="flex justify-between mb-1">
+            <label className="text-xs font-bold text-[var(--text-primary)]">Message Body *</label>
+            <span className={`text-xs ${charBody > 500 ? "text-red-400" : "text-[var(--text-secondary)]"}`}>
+              {charBody}/500
+            </span>
+          </div>
           <textarea
+            id="notification-body"
             rows={4}
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00]"
+            placeholder="e.g. Receive divine blessings today with HD Mahadev Wallpapers and morning Aarti audio in Daivik."
+            maxLength={520}
+            className="w-full px-3.5 py-2.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#FF7A00] placeholder:text-[var(--text-secondary)] resize-none"
           />
         </div>
 
@@ -111,6 +169,7 @@ export default function CreateNotificationPage() {
           <div>
             <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Banner Image URL (Optional)</label>
             <input
+              id="notification-image-url"
               type="text"
               placeholder="https://..."
               value={imageUrl}
@@ -122,6 +181,7 @@ export default function CreateNotificationPage() {
           <div>
             <label className="text-xs font-bold text-[var(--text-primary)] block mb-1">Deep Link / Action URL</label>
             <input
+              id="notification-action-url"
               type="text"
               value={actionUrl}
               onChange={(e) => setActionUrl(e.target.value)}
@@ -179,13 +239,13 @@ export default function CreateNotificationPage() {
             <div className="w-full bg-[#1A120B] text-white p-4 rounded-2xl border border-white/20 shadow-xl space-y-2">
               <div className="flex items-center justify-between text-[11px] text-white/70">
                 <div className="flex items-center gap-1.5">
-                  <img src="/daivik_logo.png" alt="Daivik" className="w-4 h-4 rounded-full" />
+                  <Bell className="w-3 h-3 text-[#FF7A00]" />
                   <span className="font-bold text-[#FF7A00]">Daivik — Bhakti</span>
                 </div>
                 <span>Just now</span>
               </div>
-              <h4 className="font-bold text-xs text-white">{title}</h4>
-              <p className="text-xs text-white/80 line-clamp-3">{body}</p>
+              <h4 className="font-bold text-xs text-white">{title || "Notification Title..."}</h4>
+              <p className="text-xs text-white/80 line-clamp-3">{body || "Message Body..."}</p>
             </div>
 
             <button
