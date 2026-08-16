@@ -86,11 +86,11 @@ export async function POST(req: Request) {
 
     console.log("[broadcast POST] Campaign saved id:", campaign?.id);
 
-    // 2. Fetch all active device tokens from device_tokens table
+    // 2. Fetch all active device tokens from user_devices table
     let fcmResult = { sent: 0, failed: 0, tokens: 0, error: "" };
     try {
       const { data: tokens, error: tokensErr } = await db
-        .from("device_tokens")
+        .from("user_devices")
         .select("fcm_token")
         .eq("is_active", true);
 
@@ -173,7 +173,7 @@ export async function POST(req: Request) {
 
             if (failedTokens.length > 0) {
               await db
-                .from("device_tokens")
+                .from("user_devices")
                 .update({ is_active: false })
                 .in("fcm_token", failedTokens);
             }

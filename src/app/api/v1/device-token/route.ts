@@ -19,21 +19,33 @@ export async function POST(req: Request) {
       { auth: { persistSession: false } }
     );
 
-    // Upsert FCM token - use token as unique key
+    let validUserId = userId;
+
+    // If no userId provided, get default profile ID
+    if (!validUserId) {
+      const { data: profile } = await supabase.from("profiles").select("id").limit(1).single();
+      if (profile) validUserId = profile.id;
+    }
+
+    if (!validUserId) {
+      return NextResponse.json({ error: "No profile ID found for user_devices" }, { status: 400 });
+    }
+
+    // Upsert FCM token into user_devices table
     const { data, error } = await supabase
-      .from("device_tokens")
+      .from("user_devices")
       .upsert(
         {
+          user_id: validUserId,
           fcm_token: token,
           platform: platform || "android",
-          user_id: userId || null,
-          last_seen: new Date().toISOString(),
           is_active: true,
+          last_seen_at: new Date().toISOString(),
         },
         { onConflict: "fcm_token" }
       )
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("[device-token] Supabase upsert error:", error);
@@ -58,8 +70,8 @@ export async function GET() {
     );
 
     const { data, error } = await supabase
-      .from("device_tokens")
-      .select("fcm_token, platform, user_id, last_seen")
+      .from("user_devices")
+      .select("fcm_token, platform, user_id, last_seen_at")
       .eq("is_active", true);
 
     if (error) {
