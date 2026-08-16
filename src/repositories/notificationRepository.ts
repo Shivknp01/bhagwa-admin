@@ -36,39 +36,33 @@ export class NotificationRepository {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error fetching notifications from Supabase:", error);
-        return mockNotifications;
+        console.error("Error fetching notifications:", error);
+        return [];
       }
 
       if (!data || data.length === 0) return [];
       return data.map((row) => this.mapRowToNotification(row as Record<string, unknown>));
-    } catch {
-      return mockNotifications;
+    } catch (err) {
+      console.error("getNotifications error:", err);
+      return [];
     }
   }
 
   async sendNotification(input: CreateNotificationInput): Promise<AppNotification> {
-    try {
-      const response = await fetch("/api/v1/notifications/broadcast", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
+    const response = await fetch("/api/v1/notifications/broadcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
 
-      const resData = await response.json();
+    const resData = await response.json();
 
-      if (!response.ok || resData.error) {
-        throw new Error(resData.error || "Failed to broadcast notification via API");
-      }
+    if (!response.ok || resData.error) {
+      throw new Error(resData.error || "Failed to broadcast notification via API");
+    }
 
-      if (resData.data) {
-        return this.mapRowToNotification(resData.data as Record<string, unknown>);
-      }
-    } catch (err) {
-      console.error("Error in sendNotification:", err);
-      throw err;
+    if (resData.data) {
+      return this.mapRowToNotification(resData.data as Record<string, unknown>);
     }
 
     return {
@@ -83,12 +77,49 @@ export class NotificationRepository {
     };
   }
 
-  async deleteNotification(id: string): Promise<boolean> {
-    const { error } = await this.supabase.from("notification_campaigns").delete().eq("id", id);
-    return !error;
+  /** Re-broadcast an existing notification campaign */
+  async pushAgain(notification: AppNotification): Promise<{ sent: number; failed: number; tokens: number }> {
+    const response = await fetch("/api/v1/notifications/broadcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: notification.title,
+        body: notification.body,
+        imageUrl: notification.imageUrl,
+        actionUrl: notification.actionUrl,
+        targetAudience: notification.targetAudience,
+        status: "sent",
+      }),
+    });
+
+    const resData = await response.json();
+
+    if (!response.ok || resData.error) {
+      throw new Error(resData.error || "Failed to re-broadcast notification");
+    }
+
+    return resData.fcm || { sent: 0, failed: 0, tokens: 0 };
   }
 
-  private mapRowToNotification(row: Record<string, unknown>): AppNotification {
+  async deleteNotification(id: string): Promise<boolean> {
+    try {
+      const response = await fetch("/api/v1/notifications/broadcast", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const resData = await response.json();
+      if (!response.ok || resData.error) {
+        throw new Error(resData.error || "Delete failed");
+      }
+      return true;
+    } catch (err) {
+      console.error("deleteNotification error:", err);
+      throw err;
+    }
+  }
+
+  mapRowToNotification(row: Record<string, unknown>): AppNotification {
     return {
       id: (row.id as string) || String(Date.now()),
       title: (row.title as string) || "Daivik Alert",
@@ -100,35 +131,10 @@ export class NotificationRepository {
       scheduledAt: (row.scheduled_at as string) || undefined,
       sentAt: (row.sent_at as string) || undefined,
       createdAt: (row.created_at as string) || new Date().toISOString(),
-      recipientCount: (row.sent_count as number) || 1250,
-      openCount: (row.opened_count as number) || 890,
+      recipientCount: (row.sent_count as number) || 0,
+      openCount: (row.opened_count as number) || 0,
     };
   }
 }
 
 export const notificationRepository = new NotificationRepository();
-
-const mockNotifications: AppNotification[] = [
-  {
-    id: "notif_1",
-    title: "🌅 Shravan Somvar Special Mahadev Wallpaper",
-    body: "Experience divine bliss today. Tap to set exclusive HD Mahadev Wallpaper.",
-    targetAudience: "all",
-    status: "sent",
-    sentAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    recipientCount: 4520,
-    openCount: 3120,
-  },
-  {
-    id: "notif_2",
-    title: "🪔 Evening Hanuman Chalisa Audio Alert",
-    body: "Listen to peaceful evening Aarti & Hanuman Chalisa audio in Daivik.",
-    targetAudience: "all",
-    status: "sent",
-    sentAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    recipientCount: 3890,
-    openCount: 2450,
-  },
-];

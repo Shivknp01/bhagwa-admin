@@ -44,3 +44,4 @@ next-env.d.ts
 config/service-account-key.json
 service-account-key.json
 *.json.key
+firebase-service-account.json
