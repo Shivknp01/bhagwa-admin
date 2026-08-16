@@ -35,8 +35,11 @@ export default function CreateNotificationPage() {
       });
 
       router.push("/notifications");
-    } catch {
-      alert("Error broadcasting notification");
+
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Error broadcasting notification";
+      console.error("Broadcast notification error:", err);
+      alert(`Error broadcasting notification: ${errorMsg}`);
     } finally {
       setSubmitting(false);
     }
