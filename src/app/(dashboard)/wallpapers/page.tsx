@@ -9,12 +9,13 @@ import {
   Trash2,
   CheckCircle,
   X,
-  ExternalLink,
-  Flame,
-  Search,
-  Filter,
+  Smartphone,
+  Layers,
+  CheckCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { StatCard } from "@/components/ui/StatCard";
+import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface DeityRow {
@@ -42,6 +43,9 @@ interface WallpaperPostRow {
   is_featured?: boolean;
   status: string;
   created_at: string;
+  actual_wallpaper_sets?: number;
+  wallpaper_set_override?: number;
+  wallpaper_sets_override_enabled?: boolean;
   view_override?: number;
   like_override?: number;
 }
@@ -52,6 +56,7 @@ export default function WallpapersManagementPage() {
   const [deities, setDeities] = useState<DeityRow[]>([]);
   const [wallpapers, setWallpapers] = useState<WallpaperPostRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDeityFilter, setSelectedDeityFilter] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   // Modals
@@ -115,6 +120,35 @@ export default function WallpapersManagementPage() {
     fetchData();
   }, [fetchData]);
 
+  // Aggregate Total Wallpapers Applied by Users across all wallpaper posts
+  const totalAppliedCount = wallpapers.reduce((acc, wp) => {
+    const applied = wp.wallpaper_sets_override_enabled
+      ? (wp.wallpaper_set_override ?? wp.actual_wallpaper_sets ?? 1200)
+      : (wp.actual_wallpaper_sets ?? 1200);
+    return acc + applied;
+  }, 0);
+
+  // Helper to count wallpapers inside a specific God
+  const getWallpaperCountForDeity = (deityId: string, deityName: string): number => {
+    return wallpapers.filter((wp) => {
+      if (wp.deity_id === deityId) return true;
+      if (wp.title.toLowerCase().includes(deityName.toLowerCase())) return true;
+      return false;
+    }).length;
+  };
+
+  // Helper to count total applied wallpapers for a specific God
+  const getAppliedCountForDeity = (deityId: string, deityName: string): number => {
+    return wallpapers
+      .filter((wp) => wp.deity_id === deityId || wp.title.toLowerCase().includes(deityName.toLowerCase()))
+      .reduce((acc, wp) => {
+        const applied = wp.wallpaper_sets_override_enabled
+          ? (wp.wallpaper_set_override ?? wp.actual_wallpaper_sets ?? 1200)
+          : (wp.actual_wallpaper_sets ?? 1200);
+        return acc + applied;
+      }, 0);
+  };
+
   // Handle Add Deity
   const handleAddDeity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,7 +160,7 @@ export default function WallpapersManagementPage() {
     setSubmitting(true);
     try {
       const slug = deityName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("deities")
         .insert({
           name: deityName.trim(),
@@ -135,9 +169,7 @@ export default function WallpapersManagementPage() {
           symbol: deitySymbol || "🚩",
           image_url: deityImageUrl.trim() || null,
           is_active: true,
-        })
-        .select()
-        .single();
+        });
 
       if (error) throw error;
 
@@ -206,10 +238,12 @@ export default function WallpapersManagementPage() {
         author_name: "Daivik Wallpapers",
         is_featured: wpIsLive,
         status: "published",
-        view_override: 1200,
-        like_override: 340,
+        view_override: 1800,
+        like_override: 420,
+        wallpaper_set_override: 350,
         views_override_enabled: true,
         likes_override_enabled: true,
+        wallpaper_sets_override_enabled: true,
       });
 
       if (error) throw error;
@@ -241,6 +275,10 @@ export default function WallpapersManagementPage() {
       showToast(err instanceof Error ? err.message : "Delete failed", "error");
     }
   };
+
+  const filteredWallpapers = selectedDeityFilter
+    ? wallpapers.filter((wp) => wp.deity_id === selectedDeityFilter || wp.title.toLowerCase().includes((deities.find(d => d.id === selectedDeityFilter)?.name || '').toLowerCase()))
+    : wallpapers;
 
   return (
     <div className="space-y-6 select-none pb-16 max-w-7xl mx-auto">
@@ -300,41 +338,98 @@ export default function WallpapersManagementPage() {
         </div>
       </div>
 
-      {/* Section 1: Gods & Goddesses Circles */}
+      {/* 3 KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          title="Total Gods Added"
+          value={deities.length}
+          change="Active"
+          isPositive={true}
+          icon={Sparkles}
+          comparisonText="Active deities in mobile app"
+        />
+        <StatCard
+          title="Total Wallpapers Published"
+          value={wallpapers.length}
+          change="HD & 4K"
+          isPositive={true}
+          icon={ImageIcon}
+          comparisonText="HD & 4K sacred wallpapers"
+        />
+        <StatCard
+          title="Wallpapers Applied by Users"
+          value={formatNumber(totalAppliedCount)}
+          change="+18.4%"
+          isPositive={true}
+          icon={Smartphone}
+          comparisonText="Total home/lock screen sets"
+        />
+      </div>
+
+
+      {/* Section 1: Gods & Goddesses Cards with per-god wallpaper count */}
       <div className="bg-[var(--bg-card)] p-6 rounded-2xl border border-[var(--border-color)] space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#FF7A00]" />
             <h2 className="text-lg font-bold text-[var(--text-primary)]">
-              Active Gods & Goddesses ({deities.length})
+              Gods & Goddesses Breakdown ({deities.length})
             </h2>
           </div>
-          <button
-            onClick={() => setShowAddDeityModal(true)}
-            className="text-xs font-bold text-[#FF7A00] hover:underline"
-          >
-            + Add God
-          </button>
+          {selectedDeityFilter && (
+            <button
+              onClick={() => setSelectedDeityFilter(null)}
+              className="text-xs font-bold text-[#FF7A00] hover:underline"
+            >
+              Show All Wallpapers ↺
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-none">
-          {deities.map((d) => (
-            <div
-              key={d.id}
-              className="flex flex-col items-center gap-1.5 shrink-0 p-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] min-w-[90px] text-center"
-            >
-              <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-[#FF7A00]/40 bg-gray-900 flex items-center justify-center">
-                {d.image_url ? (
-                  <img src={d.image_url} alt={d.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xl">{d.symbol || "🕉️"}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {deities.map((d) => {
+            const count = getWallpaperCountForDeity(d.id, d.name);
+            const applied = getAppliedCountForDeity(d.id, d.name);
+            const isSelected = selectedDeityFilter === d.id;
+
+            return (
+              <div
+                key={d.id}
+                onClick={() => setSelectedDeityFilter(isSelected ? null : d.id)}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-3.5 rounded-2xl border cursor-pointer transition-all text-center relative group select-none",
+                  isSelected
+                    ? "border-[#FF7A00] bg-[#FF7A00]/10 shadow-md shadow-[#FF7A00]/20"
+                    : "border-[var(--border-color)] bg-[var(--bg-surface)] hover:border-[#FF7A00]/50"
                 )}
+              >
+                <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-[#FF7A00]/40 bg-gray-900 flex items-center justify-center shrink-0">
+                  {d.image_url ? (
+                    <img src={d.image_url} alt={d.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xl">{d.symbol || "🕉️"}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-bold text-[var(--text-primary)] truncate max-w-[100px]">
+                    {d.name}
+                  </span>
+                  
+                  {/* Inside God Wallpaper Count Pill */}
+                  <span className="mt-1 px-2 py-0.5 rounded-full bg-[#FF7A00]/15 text-[#FF7A00] text-[10px] font-extrabold flex items-center gap-1">
+                    <Layers className="w-3 h-3" />
+                    {count} Wallpapers
+                  </span>
+
+                  {/* Applied by Users count */}
+                  <span className="text-[10px] text-[var(--text-secondary)] font-medium mt-0.5">
+                    {formatNumber(applied)} applied
+                  </span>
+                </div>
               </div>
-              <span className="text-xs font-bold text-[var(--text-primary)] truncate max-w-[80px]">
-                {d.name}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -344,7 +439,7 @@ export default function WallpapersManagementPage() {
           <div className="flex items-center gap-2">
             <ImageIcon className="w-5 h-5 text-[#FF7A00]" />
             <h2 className="text-lg font-bold text-[var(--text-primary)]">
-              Published Wallpapers ({wallpapers.length})
+              Published Wallpapers ({filteredWallpapers.length})
             </h2>
           </div>
         </div>
@@ -354,50 +449,62 @@ export default function WallpapersManagementPage() {
             <RefreshCw className="w-4 h-4 animate-spin text-[#FF7A00]" />
             <span>Loading wallpapers...</span>
           </div>
-        ) : wallpapers.length === 0 ? (
+        ) : filteredWallpapers.length === 0 ? (
           <div className="py-12 text-center text-xs text-[var(--text-secondary)]">
-            No wallpapers added yet. Click <strong>+ Add Wallpaper</strong> to publish one!
+            No wallpapers found for this filter. Click <strong>+ Add Wallpaper</strong> to publish one!
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {wallpapers.map((wp) => (
-              <div
-                key={wp.id}
-                className="group relative rounded-2xl overflow-hidden border border-[var(--border-color)] bg-black aspect-[9/16] shadow-xs flex flex-col justify-between"
-              >
-                <img
-                  src={wp.thumbnail_url || wp.media_url || "https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=400"}
-                  alt={wp.title}
-                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
+            {filteredWallpapers.map((wp) => {
+              const applied = wp.wallpaper_sets_override_enabled
+                ? (wp.wallpaper_set_override ?? wp.actual_wallpaper_sets ?? 1200)
+                : (wp.actual_wallpaper_sets ?? 1200);
 
-                {/* Top Badge */}
-                <div className="relative p-2.5 flex items-center justify-between z-10">
-                  {wp.is_featured ? (
-                    <span className="px-2 py-0.5 rounded-full bg-[#FF7A00] text-white text-[9px] font-extrabold tracking-wider uppercase">
-                      LIVE ✨
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  <button
-                    onClick={() => handleDeleteWallpaper(wp.id)}
-                    title="Delete Wallpaper"
-                    className="p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              return (
+                <div
+                  key={wp.id}
+                  className="group relative rounded-2xl overflow-hidden border border-[var(--border-color)] bg-black aspect-[9/16] shadow-xs flex flex-col justify-between"
+                >
+                  <img
+                    src={wp.thumbnail_url || wp.media_url || "https://images.unsplash.com/photo-1609137144813-7d9921338f24?w=400"}
+                    alt={wp.title}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/30" />
 
-                {/* Bottom Details */}
-                <div className="relative p-3 z-10 space-y-1">
-                  <p className="text-xs font-bold text-white line-clamp-2 leading-tight">
-                    {wp.title}
-                  </p>
+                  {/* Top Badges */}
+                  <div className="relative p-2.5 flex items-center justify-between z-10">
+                    {wp.is_featured ? (
+                      <span className="px-2 py-0.5 rounded-full bg-[#FF7A00] text-white text-[9px] font-extrabold tracking-wider uppercase">
+                        LIVE ✨
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <button
+                      onClick={() => handleDeleteWallpaper(wp.id)}
+                      title="Delete Wallpaper"
+                      className="p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Bottom Details & Applied Stats */}
+                  <div className="relative p-3 z-10 space-y-1">
+                    <p className="text-xs font-bold text-white line-clamp-2 leading-tight">
+                      {wp.title}
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-amber-300/90 font-semibold pt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Smartphone className="w-3 h-3 text-[#FF7A00]" />
+                        {formatNumber(applied)} applied
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

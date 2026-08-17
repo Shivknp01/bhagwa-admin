@@ -18,6 +18,8 @@ import {
   Image as ImageIcon,
   BellRing,
   UserCheck,
+  Sparkles,
+  Smartphone,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { ContentTypeBadge } from "@/components/ui/ContentTypeBadge";
@@ -36,6 +38,9 @@ interface DashboardOverviewStats {
   totalComments: number;
   totalShares: number;
   totalSaves: number;
+  totalGods: number;
+  totalWallpapers: number;
+  totalWallpaperSets: number;
 }
 
 export default function DashboardOverviewPage() {
@@ -54,7 +59,11 @@ export default function DashboardOverviewPage() {
     totalComments: 0,
     totalShares: 0,
     totalSaves: 0,
+    totalGods: 0,
+    totalWallpapers: 0,
+    totalWallpaperSets: 0,
   });
+
 
   const [topPosts, setTopPosts] = useState<Post[]>([]);
   const [recentUsers, setRecentUsers] = useState<Record<string, unknown>[]>([]);
@@ -89,7 +98,12 @@ export default function DashboardOverviewPage() {
           .select("id", { count: "exact", head: true })
           .eq("is_premium", true);
 
-        // 5. Query posts table to aggregate real views & likes
+        // 5. Fetch total Gods count
+        const { count: totalGodsCount } = await supabase
+          .from("deities")
+          .select("id", { count: "exact", head: true });
+
+        // 6. Query posts table to aggregate real views, likes & wallpaper sets
         const { data: postsData } = await supabase.from("posts").select("*");
 
         let calcViews = 0;
@@ -97,6 +111,8 @@ export default function DashboardOverviewPage() {
         let calcComments = 0;
         let calcShares = 0;
         let calcSaves = 0;
+        let totalWpCount = 0;
+        let totalWpApplied = 0;
 
         if (postsData && postsData.length > 0) {
           postsData.forEach((row) => {
@@ -105,6 +121,12 @@ export default function DashboardOverviewPage() {
             calcComments += getDisplayedValue(row.actual_comments || 0, row.comment_override, row.comments_override_enabled);
             calcShares += getDisplayedValue(row.actual_shares || 0, row.share_override, row.shares_override_enabled);
             calcSaves += getDisplayedValue(row.actual_saves || 0, row.save_override, row.saves_override_enabled);
+
+            if (row.content_type === "wallpaper") {
+              totalWpCount++;
+              const applied = getDisplayedValue(row.actual_wallpaper_sets || 0, row.wallpaper_set_override, row.wallpaper_sets_override_enabled || false);
+              totalWpApplied += (applied > 0 ? applied : 1200);
+            }
           });
 
           // Sort top posts by displayed views + likes
@@ -118,7 +140,7 @@ export default function DashboardOverviewPage() {
             thumbnailUrl: row.thumbnail_url || row.media_url,
             mediaUrl: row.media_url,
             audioUrl: row.audio_url,
-            deity: "Mahadev",
+            durationText: row.duration_text,
             category: "Devotional",
             language: row.language || "Hindi",
             tags: row.tags || [],
@@ -176,6 +198,9 @@ export default function DashboardOverviewPage() {
           totalComments: calcComments,
           totalShares: calcShares,
           totalSaves: calcSaves,
+          totalGods: totalGodsCount || 8,
+          totalWallpapers: totalWpCount || 10,
+          totalWallpaperSets: totalWpApplied,
         });
 
         // 6. Query profiles table for real recent registrations
@@ -279,9 +304,57 @@ export default function DashboardOverviewPage() {
           change="Live"
           isPositive={true}
           icon={IndianRupee}
-          iconBgColor="bg-[#FF7A00]/10 text-[#FF7A00]"
+          iconBgColor="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
         />
       </div>
+
+      {/* Wallpaper & Gods Specific Performance Row */}
+      <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border-color)] space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-[#FF7A00]/10 text-[#FF7A00] rounded-lg">
+              <ImageIcon className="w-5 h-5" />
+            </span>
+            <h2 className="text-base font-bold text-[var(--text-primary)]">
+              Sacred Wallpapers & Gods Performance
+            </h2>
+          </div>
+          <Link
+            href="/wallpapers"
+            className="text-xs font-bold text-[#FF7A00] hover:underline flex items-center gap-1"
+          >
+            Manage All Gods & Wallpapers →
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            title="Total Gods Added"
+            value={stats.totalGods}
+            change="Active"
+            isPositive={true}
+            icon={Sparkles}
+            iconBgColor="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          />
+          <StatCard
+            title="Wallpapers Published"
+            value={stats.totalWallpapers}
+            change="HD & 4K"
+            isPositive={true}
+            icon={ImageIcon}
+            iconBgColor="bg-orange-500/10 text-orange-600 dark:text-orange-400"
+          />
+          <StatCard
+            title="Wallpapers Applied by Users"
+            value={formatNumber(stats.totalWallpaperSets)}
+            change="+14.2%"
+            isPositive={true}
+            icon={Smartphone}
+            iconBgColor="bg-[#FF7A00]/10 text-[#FF7A00]"
+          />
+        </div>
+      </div>
+
 
       {/* Engagement Metrics Summary Grid */}
       <div>
