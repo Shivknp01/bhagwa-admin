@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
+
 import {
   Users,
   UserPlus,
@@ -209,22 +211,33 @@ export default function DashboardOverviewPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {["7D", "30D", "90D", "1Y"].map((tf) => (
-            <button
-              key={tf}
-              onClick={() => setTimeFilter(tf)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                timeFilter === tf
-                  ? "bg-[#FF7A00] text-white shadow-xs"
-                  : "bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/wallpapers"
+            className="px-4 py-2 rounded-xl bg-[#FF7A00] hover:bg-[#E66E00] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-[#FF7A00]/25 transition-all"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>Manage Wallpapers & Gods</span>
+          </Link>
+
+          <div className="flex items-center gap-1.5 bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-color)]">
+            {["7D", "30D", "90D", "1Y"].map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeFilter(tf)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  timeFilter === tf
+                    ? "bg-[#FF7A00] text-white shadow-xs"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
 
       {/* Top 5 Primary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

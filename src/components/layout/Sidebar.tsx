@@ -17,7 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Image as ImageIcon,
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -28,6 +30,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Wallpapers", href: "/wallpapers", icon: ImageIcon },
   { label: "Users", href: "/users", icon: Users },
   { label: "Content", href: "/content", icon: FolderKanban },
   { label: "Feed", href: "/feed", icon: Rss },
@@ -38,6 +41,7 @@ const navItems: NavItem[] = [
   { label: "Moderation", href: "/moderation", icon: ShieldAlert },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
+
 
 export function Sidebar() {
   const pathname = usePathname();
