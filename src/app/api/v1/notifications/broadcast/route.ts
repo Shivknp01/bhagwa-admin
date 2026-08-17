@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getMessaging } from "@/lib/firebase-admin";
-import type { MulticastMessage, Notification } from "firebase-admin/messaging";
+import type { MulticastMessage } from "firebase-admin/messaging";
+
 
 const SUPABASE_URL = "https://fyhtlazvmvsdgsrndoxh.supabase.co";
 const SERVICE_ROLE_KEY =
@@ -103,11 +104,7 @@ export async function POST(req: Request) {
         // 3. Send FCM multicast push notification
         const messaging = getMessaging();
 
-        // Build notification object
-        const notification: Notification = { title, body: message };
-        if (imageUrl) notification.imageUrl = imageUrl;
-
-        // Build data payload
+        // Build data payload — title/body in data so local notifications fire in ALL states
         const dataPayload: Record<string, string> = {
           title,
           body: message,
@@ -115,6 +112,7 @@ export async function POST(req: Request) {
           click_action: "FLUTTER_NOTIFICATION_CLICK",
         };
         if (actionUrl) dataPayload.action_url = actionUrl;
+        if (imageUrl) dataPayload.image_url = imageUrl;
 
         // FCM allows max 500 tokens per multicast
         const tokenChunks: string[][] = [];
@@ -125,35 +123,33 @@ export async function POST(req: Request) {
 
         for (const chunk of tokenChunks) {
           try {
+            // DATA-ONLY message — no `notification:` block.
+            // This ensures firebaseMessagingBackgroundHandler fires on ALL devices,
+            // and flutter_local_notifications handles display in every app state.
             const multicastMsg: MulticastMessage = {
               tokens: chunk,
-              notification,
               data: dataPayload,
               android: {
                 priority: "high",
-                notification: {
-                  channelId: "daivik_broadcasts",
-                  priority: "max",
-                  visibility: "public",
-                  defaultSound: true,
-                  defaultVibrateTimings: true,
-                  icon: "@mipmap/ic_launcher",
-                  clickAction: "FLUTTER_NOTIFICATION_CLICK",
-                },
+                // No android.notification block — data-only forces background handler
               },
               apns: {
                 payload: {
                   aps: {
-                    alert: { title, body: message },
-                    sound: "default",
-                    badge: 1,
+                    // contentAvailable: true makes iOS wake the app for data-only messages
                     contentAvailable: true,
+                    sound: "default",
                   },
+                },
+                headers: {
+                  "apns-priority": "10",
+                  "apns-push-type": "background",
                 },
               },
             };
 
             const batchResponse = await messaging.sendEachForMulticast(multicastMsg);
+
             fcmResult.sent += batchResponse.successCount;
             fcmResult.failed += batchResponse.failureCount;
 
