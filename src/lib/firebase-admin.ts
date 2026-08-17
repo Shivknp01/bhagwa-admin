@@ -13,20 +13,52 @@ export function getFirebaseAdmin(): App {
     return cachedApp;
   }
 
-  // Load service account from file
-  const serviceAccountPath = join(process.cwd(), "firebase-service-account.json");
-  let serviceAccountJson: Record<string, string>;
+  let serviceAccountJson: Record<string, string> | null = null;
 
-  try {
-    const raw = readFileSync(serviceAccountPath, "utf8");
-    serviceAccountJson = JSON.parse(raw);
-  } catch {
-    // Fallback to env vars
+  // 1. Try FIREBASE_SERVICE_ACCOUNT_BASE64 env var (most reliable for Vercel/cloud)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+    try {
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, "base64").toString("utf8");
+      serviceAccountJson = JSON.parse(decoded);
+    } catch (e) {
+      console.error("[firebase-admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64:", e);
+    }
+  }
+
+  // 2. Try FIREBASE_SERVICE_ACCOUNT_KEY (raw JSON string env var)
+  if (!serviceAccountJson && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    try {
+      serviceAccountJson = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    } catch (e) {
+      console.error("[firebase-admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", e);
+    }
+  }
+
+  // 3. Try reading local firebase-service-account.json file
+  if (!serviceAccountJson) {
+    try {
+      const serviceAccountPath = join(process.cwd(), "firebase-service-account.json");
+      const raw = readFileSync(serviceAccountPath, "utf8");
+      serviceAccountJson = JSON.parse(raw);
+    } catch {
+      // File not found
+    }
+  }
+
+  // 4. Fallback to individual env vars
+  if (!serviceAccountJson) {
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY || "";
+    // Clean up quotes or escaped newlines
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    privateKey = privateKey.replace(/\\n/g, "\n");
+
     serviceAccountJson = {
       type: "service_account",
       project_id: process.env.FIREBASE_PROJECT_ID || "bhagwa-prod",
       client_email: process.env.FIREBASE_CLIENT_EMAIL || "",
-      private_key: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+      private_key: privateKey,
     };
   }
 
